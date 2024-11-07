@@ -1,13 +1,14 @@
 import json
 import sys
-
-# import bencodepy - available if you need it!
+import hashlib
+import bencodepy
 # import requests - available if you need it!
 
 # Examples:
 #
 # - decode_bencode(b"5:hello") -> b"hello"
 # - decode_bencode(b"10:hello12345") -> b"hello12345"
+bc = bencodepy.Bencode(encoding="utf-8")
 def decode_bencode(bencoded_value):
 
     def extract_string(data):
@@ -35,30 +36,30 @@ def decode_bencode(bencoded_value):
     decoded_value, _ = decode(bencoded_value)
     return decoded_value
 
+# Let's convert them to strings for printing to the console.
+def bytes_to_str(data):
+    if isinstance(data, bytes):
+        return data.decode()
+
+    raise TypeError(f"Type not serializable: {type(data)}")
+
 def main():
     command = sys.argv[1]
 
     if command == "decode":
         bencoded_value = sys.argv[2].encode()
 
-        # json.dumps() can't handle bytes, but bencoded "strings" need to be
-        # bytestrings since they might contain non utf-8 characters.
-        #
-        # Let's convert them to strings for printing to the console.
-        def bytes_to_str(data):
-            if isinstance(data, bytes):
-                return data.decode()
-
-            raise TypeError(f"Type not serializable: {type(data)}")
-
         print(json.dumps(decode_bencode(bencoded_value), default=bytes_to_str))
     elif command == "info":
-        file_name = sys.argv[2]
-        with open(file_name, "rb") as torrent_file:
-            bencoded_content = torrent_file.read()
-        torrent = decode_bencode(bencoded_content)
-        print("Tracker URL:", torrent["announce"].decode())
-        print("Length:", torrent["info"]["length"])
+        torrent_file_path = sys.argv[2]
+        with open(torrent_file_path, "rb") as file:
+            content = file.read()
+        decoded_content = bencodepy.decode(content)
+        info = bytes_to_str(decoded_content)
+        info_hash = hashlib.sha1(bencodepy.encode(decoded_content[b"info"])).hexdigest()
+        print(f'Tracker URL: {info["announce"]}')
+        print(f'Length: {info["info"]["length"]}')
+        print(f"Info Hash: {info_hash}")
     else:
         raise NotImplementedError(f"Unknown command {command}")
 
